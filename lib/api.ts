@@ -9,6 +9,7 @@ import type {
   Mantenimiento,
   Repuesto,
   Cotizacion,
+  CotizacionItem,
   OrdenTrabajoExtendida,
   CotizacionExtendida,
   MantenimientoExtendido,
@@ -672,14 +673,16 @@ export async function getCotizaciones(): Promise<CotizacionExtendida[]> {
       .from('cotizaciones')
       .select(`
         *,
-        clientes (*)
+        clientes (*),
+        cotizacion_items (*)
       `)
     
     if (error) throw error
     
     return data?.map((c: any) => ({
       ...c,
-      cliente: c.clientes
+      cliente: c.clientes,
+      items: c.cotizacion_items || []
     })) || []
   } catch (error) {
     console.error('Error obteniendo cotizaciones:', error)
@@ -693,7 +696,8 @@ export async function getCotizacionesByClienteId(clienteId: string): Promise<Cot
       .from('cotizaciones')
       .select(`
         *,
-        clientes (*)
+        clientes (*),
+        cotizacion_items (*)
       `)
       .eq('cliente_id', clienteId)
     
@@ -701,7 +705,8 @@ export async function getCotizacionesByClienteId(clienteId: string): Promise<Cot
     
     return data?.map((c: any) => ({
       ...c,
-      cliente: c.clientes
+      cliente: c.clientes,
+      items: c.cotizacion_items || []
     })) || []
   } catch (error) {
     console.error('Error obteniendo cotizaciones del cliente:', error)
@@ -709,16 +714,41 @@ export async function getCotizacionesByClienteId(clienteId: string): Promise<Cot
   }
 }
 
-export async function createCotizacion(data: Omit<Cotizacion, 'id'>): Promise<Cotizacion> {
+export async function createCotizacion(data: Omit<Cotizacion, 'id' | 'items'> & { items?: CotizacionItem[] }): Promise<Cotizacion> {
   try {
-    const { data: newCotizacion, error } = await supabase
+    // Extraer items del objeto data
+    const { items, ...cotizacionData } = data
+
+    // Crear la cotización sin items
+    const { data: newCotizacion, error: cotizacionError } = await supabase
       .from('cotizaciones')
-      .insert([data])
+      .insert([cotizacionData])
       .select()
       .single()
-    
-    if (error) throw error
-    return newCotizacion
+
+    if (cotizacionError) throw cotizacionError
+
+    // Si hay items, insertarlos en la tabla cotizacion_items
+    if (items && items.length > 0) {
+      const itemsToInsert = items.map(item => ({
+        cotizacion_id: newCotizacion.id,
+        descripcion: item.descripcion,
+        cantidad: item.cantidad,
+        precio_unitario: item.precio_unitario
+      }))
+
+      const { error: itemsError } = await supabase
+        .from('cotizacion_items')
+        .insert(itemsToInsert)
+
+      if (itemsError) throw itemsError
+    }
+
+    // Retornar la cotización con los items incluidos (para compatibilidad con el frontend)
+    return {
+      ...newCotizacion,
+      items: items || []
+    }
   } catch (error) {
     console.error('Error creando cotización:', error)
     throw error

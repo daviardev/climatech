@@ -88,10 +88,11 @@ export default function CotizacionesPage() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedCotizacion, setSelectedCotizacion] =
     useState<CotizacionExtendida | null>(null);
+  const [currentCliente, setCurrentCliente] = useState<Cliente | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
-    cliente_id: "",
+    cliente_id: user?.rol === "cliente" && currentCliente ? currentCliente.id : "",
     descripcion: "",
     items: [] as CotizacionItem[],
   });
@@ -105,6 +106,12 @@ export default function CotizacionesPage() {
   useEffect(() => {
     loadData();
   }, [user]);
+
+  useEffect(() => {
+    if (user?.rol === "cliente" && currentCliente) {
+      setFormData(prev => ({ ...prev, cliente_id: currentCliente.id }));
+    }
+  }, [currentCliente, user]);
 
   useEffect(() => {
     const filtered = cotizaciones.filter(
@@ -132,6 +139,7 @@ export default function CotizacionesPage() {
       } else if (user.rol === "cliente") {
         const cliente = await getClienteByUsuarioId(user.id);
         if (cliente) {
+          setCurrentCliente(cliente);
           cotizacionesData = await getCotizacionesByClienteId(cliente.id);
         }
       }
@@ -171,17 +179,25 @@ export default function CotizacionesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const clienteId = user?.rol === "cliente" && currentCliente 
+        ? currentCliente.id 
+        : formData.cliente_id;
+
       await createCotizacion({
         fecha: new Date().toISOString().split("T")[0],
         total: calcularTotal(),
         estado: "pendiente",
-        cliente_id: formData.cliente_id,
+        cliente_id: clienteId,
         descripcion: formData.descripcion,
         items: formData.items,
       });
       await loadData();
       setIsDialogOpen(false);
-      setFormData({ cliente_id: "", descripcion: "", items: [] });
+      setFormData({ 
+        cliente_id: user?.rol === "cliente" && currentCliente ? currentCliente.id : "", 
+        descripcion: "", 
+        items: [] 
+      });
     } catch (error) {
       console.error("Error creating cotizacion:", error);
     }
@@ -232,42 +248,48 @@ export default function CotizacionesPage() {
               : "Mis cotizaciones recibidas"}
           </p>
         </div>
-        {user?.rol === "admin" && (
+        {(user?.rol === "admin" || user?.rol === "cliente") && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                Nueva Cotización
+                {user?.rol === "admin" ? "Nueva Cotización" : "Solicitar Cotización"}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Nueva Cotización</DialogTitle>
+                <DialogTitle>
+                  {user?.rol === "admin" ? "Nueva Cotización" : "Solicitar Cotización"}
+                </DialogTitle>
                 <DialogDescription>
-                  Crea una nueva cotización para un cliente
+                  {user?.rol === "admin" 
+                    ? "Crea una nueva cotización para un cliente"
+                    : "Solicita una cotización para tus servicios"}
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit}>
                 <FieldGroup>
-                  <Field>
-                    <FieldLabel>Cliente</FieldLabel>
-                    <Select
-                      value={formData.cliente_id}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, cliente_id: value })
-                      }>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona el cliente" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clientes.map((cliente) => (
-                          <SelectItem key={cliente.id} value={cliente.id}>
-                            {cliente.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
+                  {user?.rol === "admin" && (
+                    <Field>
+                      <FieldLabel>Cliente</FieldLabel>
+                      <Select
+                        value={formData.cliente_id}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, cliente_id: value })
+                        }>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona el cliente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {clientes.map((cliente) => (
+                            <SelectItem key={cliente.id} value={cliente.id}>
+                              {cliente.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  )}
                   <Field>
                     <FieldLabel>Descripción</FieldLabel>
                     <Textarea
