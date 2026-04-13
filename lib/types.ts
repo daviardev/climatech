@@ -36,7 +36,7 @@ export interface Equipo {
   fecha_instalacion?: string
 }
 
-export type EstadoOrden = 'pendiente' | 'asignada' | 'en_progreso' | 'completada' | 'cancelada'
+export type EstadoOrden = 'pendiente' | 'asignada' | 'en_progreso' | 'pending_verification' | 'completada' | 'cancelada'
 
 export interface OrdenTrabajo {
   id: string
@@ -120,4 +120,65 @@ export interface DashboardStats {
   ingresosMes: number
   mantenimientosPreventivos: number
   mantenimientosCorrectivos: number
+}
+
+// Cotización completa con todas sus relaciones
+export interface CotizacionConRelaciones {
+  id: string
+  fecha: string
+  total: number
+  estado: EstadoCotizacion
+  cliente_id: string
+  descripcion: string
+  created_at?: string
+  clientes?: {
+    id: string
+    nombre_empresa?: string
+    nombre: string
+    telefono: string
+    direccion: string
+  }
+  equipos?: {
+    id: string
+    modelo: string
+    serie: string
+  }
+  tipos_trabajo?: {
+    id: string
+    nombre: string
+  }
+  cotizacion_items?: CotizacionItem[]
+}
+
+// Archivo de evidencia
+export interface EvidenciaCotizacion {
+  id: string
+  cotizacion_id: string
+  nombre_archivo: string
+  archivo_url: string
+  descripcion?: string
+  created_at?: string
+}
+
+// Imagen de mantenimiento
+export interface ImagenMantenimiento {
+  id: string
+  mantenimiento_id: string
+  imagen_url: string
+  descripcion?: string
+  created_at?: string
+}
+
+// Repuesto utilizado en mantenimiento
+export interface RepuestoMantenimiento {
+  id: string
+  mantenimiento_id: string
+  repuesto_id: string
+  cantidad: number
+  repuestos?: {
+    id: string
+    nombre: string
+    costo: number
+    stock: number
+  }
 }

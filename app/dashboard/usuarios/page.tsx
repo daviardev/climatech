@@ -43,7 +43,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getUsuarios, createUsuario } from "@/lib/api";
+import { getUsuarios, createUsuario, deleteUsuario } from "@/lib/api";
 import type { User } from "@/lib/types";
 import {
   Plus,
@@ -64,12 +64,13 @@ export default function UsuariosPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [usuarioToDelete, setUsuarioToDelete] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
     nombre: "",
     email: "",
-    password: "",
     rol: "cliente",
   });
   const [formError, setFormError] = useState("");
@@ -106,7 +107,7 @@ export default function UsuariosPage() {
 
   const handleOpenDialog = () => {
     setFormError("");
-    setFormData({ nombre: "", email: "", password: "", rol: "cliente" });
+    setFormData({ nombre: "", email: "", rol: "cliente" });
     setIsDialogOpen(true);
   };
 
@@ -127,10 +128,6 @@ export default function UsuariosPage() {
       setFormError("Email inválido");
       return;
     }
-    if (!formData.password || formData.password.length < 6) {
-      setFormError("La contraseña debe tener mínimo 6 caracteres");
-      return;
-    }
     if (!formData.rol) {
       setFormError("Debes seleccionar un rol");
       return;
@@ -138,25 +135,37 @@ export default function UsuariosPage() {
 
     setIsSaving(true);
     try {
-      await createUsuario(
-        formData.nombre,
-        formData.email,
-        formData.password,
-        formData.rol,
-      );
+      await createUsuario(formData.nombre, formData.email, formData.rol);
       await loadUsuarios();
       setIsDialogOpen(false);
-      setFormData({ nombre: "", email: "", password: "", rol: "cliente" });
+      setFormData({ nombre: "", email: "", rol: "cliente" });
       setFormError("");
-    } catch (error: any) {
+      setFormData({ nombre: "", email: "", rol: "cliente" });
+    } catch (error) {
       console.error("Error saving usuario:", error);
-      if (error.message?.includes("duplicate")) {
+      if (error instanceof Error && error.message?.includes("duplicate")) {
         setFormError("Este email ya está registrado");
       } else {
         setFormError("Error al crear usuario. Intenta de nuevo.");
       }
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteUsuario = async () => {
+    if (!usuarioToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteUsuario(usuarioToDelete.id);
+      await loadUsuarios();
+      setUsuarioToDelete(null);
+    } catch (error) {
+      console.error("Error deleting usuario:", error);
+      alert("Error al eliminar usuario. Intenta de nuevo.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -215,7 +224,8 @@ export default function UsuariosPage() {
             <DialogHeader>
               <DialogTitle>Crear Nuevo Usuario</DialogTitle>
               <DialogDescription>
-                Completa los datos para registrar un nuevo usuario en el sistema
+                Completa los datos. La contraseña se genera automáticamente y se
+                enviará por email al usuario.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit}>
@@ -247,20 +257,6 @@ export default function UsuariosPage() {
                       setFormData({ ...formData, email: e.target.value })
                     }
                     disabled={isSaving}
-                    required
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="password">Contraseña *</FieldLabel>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
-                    disabled={isSaving}
-                    placeholder="Mínimo 6 caracteres"
                     required
                   />
                 </Field>
@@ -306,6 +302,53 @@ export default function UsuariosPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Dialog de Confirmación de Eliminación */}
+      <Dialog
+        open={!!usuarioToDelete}
+        onOpenChange={(open) => {
+          if (!open) setUsuarioToDelete(null);
+        }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Eliminación</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que quieres eliminar a{" "}
+              <strong>{usuarioToDelete?.nombre}</strong>? Esta acción no se
+              puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 text-sm text-destructive">
+            <p>
+              <strong>⚠️ Advertencia:</strong> Se eliminarán todos los datos
+              asociados a este usuario, incluyendo órdenes y registros.
+            </p>
+          </div>
+          <DialogFooter className="mt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setUsuarioToDelete(null)}
+              disabled={isDeleting}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteUsuario}
+              disabled={isDeleting}>
+              {isDeleting ? (
+                <>
+                  <Spinner className="mr-2 h-4 w-4" />
+                  Eliminando...
+                </>
+              ) : (
+                "Eliminar Usuario"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Search */}
       <div className="relative max-w-sm">
@@ -371,9 +414,11 @@ export default function UsuariosPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="text-destructive">
+                          <DropdownMenuItem
+                            className="text-destructive cursor-pointer"
+                            onClick={() => setUsuarioToDelete(usuario)}>
                             <Trash2 className="mr-2 h-4 w-4" />
-                            Eliminar (pronto)
+                            Eliminar
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

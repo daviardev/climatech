@@ -18,6 +18,8 @@ import {
   getOrdenesByClienteId,
   getTecnicoByUsuarioId,
   getClienteByUsuarioId,
+  getOrdenesPorMes,
+  getTecnicosProductividad,
   formatCurrency,
   formatDate,
   getEstadoColor,
@@ -28,6 +30,7 @@ import type {
   OrdenTrabajoExtendida,
   Tecnico,
   Cliente,
+  User,
 } from "@/lib/types";
 import {
   ClipboardList,
@@ -63,6 +66,12 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [tecnico, setTecnico] = useState<Tecnico | null>(null);
   const [cliente, setCliente] = useState<Cliente | null>(null);
+  const [ordenesPorMes, setOrdenesPorMes] = useState<
+    Array<{ mes: string; ingresos: number }>
+  >([]);
+  const [tecnicosProductividad, setTecnicosProductividad] = useState<
+    Array<{ nombre: string; ordenes: number }>
+  >([]);
 
   useEffect(() => {
     async function loadData() {
@@ -73,8 +82,14 @@ export default function DashboardPage() {
         setStats(statsData);
 
         if (user.rol === "admin") {
-          const ordenesData = await getOrdenes();
+          const [ordenesData, mesData, tecnicosData] = await Promise.all([
+            getOrdenes(),
+            getOrdenesPorMes(),
+            getTecnicosProductividad(),
+          ]);
           setOrdenes(ordenesData.slice(0, 5));
+          setOrdenesPorMes(mesData);
+          setTecnicosProductividad(tecnicosData);
         } else if (user.rol === "tecnico") {
           const tecnicoData = await getTecnicoByUsuarioId(user.id);
           if (tecnicoData) {
@@ -147,17 +162,19 @@ export default function DashboardPage() {
         ordenes={ordenes}
         ordenesChartData={ordenesChartData}
         mantenimientosChartData={mantenimientosChartData}
+        ordenesPorMes={ordenesPorMes}
+        tecnicosProductividad={tecnicosProductividad}
         COLORS={COLORS}
       />
     );
   }
 
   if (user?.rol === "tecnico") {
-    return <TecnicoDashboard ordenes={ordenes} tecnico={tecnico} />;
+    return <TecnicoDashboard ordenes={ordenes} tecnico={tecnico} user={user} />;
   }
 
   if (user?.rol === "cliente") {
-    return <ClienteDashboard ordenes={ordenes} cliente={cliente} />;
+    return <ClienteDashboard ordenes={ordenes} cliente={cliente} user={user} />;
   }
 
   return null;
@@ -169,12 +186,16 @@ function AdminDashboard({
   ordenes,
   ordenesChartData,
   mantenimientosChartData,
+  ordenesPorMes,
+  tecnicosProductividad,
   COLORS,
 }: {
   stats: DashboardStats;
   ordenes: OrdenTrabajoExtendida[];
   ordenesChartData: { name: string; value: number; color: string }[];
   mantenimientosChartData: { name: string; cantidad: number }[];
+  ordenesPorMes: Array<{ mes: string; ingresos: number }>;
+  tecnicosProductividad: Array<{ nombre: string; ordenes: number }>;
   COLORS: string[];
 }) {
   return (
@@ -338,6 +359,74 @@ function AdminDashboard({
         </Card>
       </div>
 
+      {/* Additional Charts Row */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Ingresos por Mes</CardTitle>
+            <CardDescription>
+              Cotizaciones aprobadas últimos 6 meses
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={ordenesPorMes}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    className="stroke-border"
+                  />
+                  <XAxis dataKey="mes" className="text-muted-foreground" />
+                  <YAxis className="text-muted-foreground" />
+                  <Tooltip
+                    formatter={(value) => formatCurrency(value as number)}
+                  />
+                  <Bar
+                    dataKey="ingresos"
+                    fill="oklch(0.55 0.18 145)"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Técnicos Más Productivos</CardTitle>
+            <CardDescription>Órdenes completadas</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={tecnicosProductividad}
+                  layout="vertical"
+                  margin={{ left: 150 }}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    className="stroke-border"
+                  />
+                  <XAxis type="number" className="text-muted-foreground" />
+                  <YAxis
+                    dataKey="nombre"
+                    type="category"
+                    className="text-muted-foreground text-xs"
+                  />
+                  <Tooltip />
+                  <Bar
+                    dataKey="ordenes"
+                    fill="oklch(0.7 0.15 80)"
+                    radius={[0, 4, 4, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Recent Orders */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -414,9 +503,11 @@ function AdminDashboard({
 function TecnicoDashboard({
   ordenes,
   tecnico,
+  user,
 }: {
   ordenes: OrdenTrabajoExtendida[];
   tecnico: Tecnico | null;
+  user: User;
 }) {
   const ordenesActivas = ordenes.filter(
     (o) => o.estado !== "completada" && o.estado !== "cancelada",
@@ -427,7 +518,7 @@ function TecnicoDashboard({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">
-          Bienvenido, {tecnico?.nombre || "Técnico"}
+          Bienvenido, {tecnico?.nombre || user?.nombre || "Técnico"}
         </h1>
         <p className="text-muted-foreground">Panel de órdenes asignadas</p>
       </div>
@@ -536,9 +627,11 @@ function TecnicoDashboard({
 function ClienteDashboard({
   ordenes,
   cliente,
+  user,
 }: {
   ordenes: OrdenTrabajoExtendida[];
   cliente: Cliente | null;
+  user: User;
 }) {
   const ordenesActivas = ordenes.filter(
     (o) => o.estado !== "completada" && o.estado !== "cancelada",
@@ -549,7 +642,7 @@ function ClienteDashboard({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">
-          Bienvenido, {cliente?.nombre || "Cliente"}
+          Bienvenido, {cliente?.nombre || user?.nombre || "Cliente"}
         </h1>
         <p className="text-muted-foreground">
           Panel de seguimiento de servicios

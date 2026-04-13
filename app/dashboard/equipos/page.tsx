@@ -130,6 +130,12 @@ export default function EquiposPage() {
     return clientes.find((c) => c.id === clienteId)?.nombre || "N/A";
   };
 
+  // Obtener la fecha de hoy en formato YYYY-MM-DD
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  };
+
   const handleOpenDialog = (equipo?: Equipo) => {
     if (equipo) {
       setEditingEquipo(equipo);
@@ -158,6 +164,17 @@ export default function EquiposPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Validar fecha de instalación
+      if (formData.fecha_instalacion) {
+        const fechaInstalacion = new Date(formData.fecha_instalacion);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Resetear hora para comparar solo fechas
+
+        if (fechaInstalacion < today) {
+          alert("La fecha de instalación no puede ser anterior a hoy");
+          return;
+        }
+      }
       if (editingEquipo) {
         await updateEquipo(editingEquipo.id, formData);
       } else {
@@ -316,6 +333,7 @@ export default function EquiposPage() {
                       id="fecha_instalacion"
                       type="date"
                       value={formData.fecha_instalacion}
+                      min={getTodayDate()}
                       onChange={(e) =>
                         setFormData({
                           ...formData,

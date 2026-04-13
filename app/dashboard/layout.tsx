@@ -21,6 +21,10 @@ import {
   Thermometer,
   Menu,
   X,
+  Tag,
+  PackageCheck,
+  CheckCircle,
+  MessageSquare,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -29,8 +33,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { useState } from "react";
 import { Spinner } from "@/components/ui/spinner";
+import { updateNombreUsuario, updatePasswordUsuario } from "@/lib/api";
 
 interface NavItem {
   href: string;
@@ -71,16 +86,46 @@ const navItems: NavItem[] = [
     roles: ["admin"],
   },
   {
+    href: "/dashboard/tipos-equipo",
+    label: "Tipos de Equipo",
+    icon: Tag,
+    roles: ["admin"],
+  },
+  {
+    href: "/dashboard/tipos-trabajo",
+    label: "Tipos de Trabajo",
+    icon: Wrench,
+    roles: ["admin"],
+  },
+  {
+    href: "/dashboard/repuestos-revision",
+    label: "Repuestos en Revisión",
+    icon: PackageCheck,
+    roles: ["admin"],
+  },
+  {
     href: "/dashboard/ordenes",
     label: "Órdenes de Trabajo",
     icon: ClipboardList,
     roles: ["admin", "tecnico", "cliente"],
   },
   {
-    href: "/dashboard/cotizaciones",
-    label: "Cotizaciones",
+    href: "/dashboard/cotizaciones-admin",
+    label: "Cotizaciones (Admin)",
     icon: FileText,
-    roles: ["admin", "cliente"],
+    roles: ["admin"],
+  },
+  {
+    href: "/dashboard/solicitar-cotizacion",
+    label: "Solicitar Cotización",
+    icon: MessageSquare,
+    roles: ["cliente"],
+  },
+  {
+    href: "/dashboard/mis-cotizaciones",
+    label: "Mis Cotizaciones",
+    icon: CheckCircle,
+    roles: ["cliente"],
   },
   {
     href: "/dashboard/repuestos",
@@ -95,6 +140,15 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [configFormData, setConfigFormData] = useState({
+    nombre: "",
+    passwordActual: "",
+    passwordNueva: "",
+    passwordConfirm: "",
+  });
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configError, setConfigError] = useState("");
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -121,6 +175,66 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const handleLogout = () => {
     logout();
     router.push("/");
+  };
+
+  const handleOpenConfig = () => {
+    if (user) {
+      setConfigFormData({
+        nombre: user.nombre,
+        passwordActual: "",
+        passwordNueva: "",
+        passwordConfirm: "",
+      });
+      setConfigError("");
+      setConfigDialogOpen(true);
+    }
+  };
+
+  const handleSaveConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setConfigError("");
+    setConfigLoading(true);
+
+    try {
+      // Validaciones
+      if (configFormData.nombre.trim().length === 0) {
+        throw new Error("El nombre no puede estar vacío");
+      }
+
+      // Actualizar nombre si cambió
+      if (configFormData.nombre !== user?.nombre) {
+        await updateNombreUsuario(user!.id, configFormData.nombre);
+      }
+
+      // Actualizar contraseña si se proporcionó
+      if (configFormData.passwordNueva) {
+        if (configFormData.passwordNueva.length < 6) {
+          throw new Error("La nueva contraseña debe tener mínimo 6 caracteres");
+        }
+        if (configFormData.passwordNueva !== configFormData.passwordConfirm) {
+          throw new Error("Las contraseñas no coinciden");
+        }
+        await updatePasswordUsuario(user!.id, configFormData.passwordNueva);
+      }
+
+      setConfigDialogOpen(false);
+      setConfigFormData({
+        nombre: "",
+        passwordActual: "",
+        passwordNueva: "",
+        passwordConfirm: "",
+      });
+      // Podrías mostrar un toast de éxito aquí
+      alert("Configuración actualizada correctamente");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Error al actualizar configuración";
+      setConfigError(errorMessage);
+    } finally {
+      setConfigLoading(false);
+    }
   };
 
   const getRolLabel = (rol: string) => {
@@ -194,7 +308,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleOpenConfig}>
                   <Settings className="mr-2 h-4 w-4" />
                   Configuración
                 </DropdownMenuItem>
@@ -291,6 +405,99 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <main className="lg:pl-64">
         <div className="p-4 lg:p-8">{children}</div>
       </main>
+
+      {/* Dialog de Configuración */}
+      <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Configuración de Cuenta</DialogTitle>
+            <DialogDescription>
+              Cambia tu nombre de usuario o contraseña
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveConfig}>
+            {configError && (
+              <div className="mb-4 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+                {configError}
+              </div>
+            )}
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="nombre">Nombre</FieldLabel>
+                <Input
+                  id="nombre"
+                  value={configFormData.nombre}
+                  onChange={(e) =>
+                    setConfigFormData({
+                      ...configFormData,
+                      nombre: e.target.value,
+                    })
+                  }
+                  disabled={configLoading}
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="passwordNueva">
+                  Nueva Contraseña (opcional)
+                </FieldLabel>
+                <Input
+                  id="passwordNueva"
+                  type="password"
+                  value={configFormData.passwordNueva}
+                  onChange={(e) =>
+                    setConfigFormData({
+                      ...configFormData,
+                      passwordNueva: e.target.value,
+                    })
+                  }
+                  disabled={configLoading}
+                  placeholder="Dejar en blanco para no cambiar"
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="passwordConfirm">
+                  Confirmar Contraseña
+                </FieldLabel>
+                <Input
+                  id="passwordConfirm"
+                  type="password"
+                  value={configFormData.passwordConfirm}
+                  onChange={(e) =>
+                    setConfigFormData({
+                      ...configFormData,
+                      passwordConfirm: e.target.value,
+                    })
+                  }
+                  disabled={configLoading}
+                  placeholder="Confirma tu nueva contraseña"
+                />
+              </Field>
+            </FieldGroup>
+
+            <DialogFooter className="mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setConfigDialogOpen(false)}
+                disabled={configLoading}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={configLoading}>
+                {configLoading ? (
+                  <>
+                    <Spinner className="mr-2 h-4 w-4" />
+                    Guardando...
+                  </>
+                ) : (
+                  "Guardar Cambios"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
