@@ -17,6 +17,8 @@ import type {
   CotizacionConRelaciones,
   EvidenciaCotizacion,
   ImagenMantenimiento,
+  DetalleRepuesto,
+  RepuestoMantenimiento,
 } from './types'
 
 const supabase = createClient()
@@ -584,9 +586,9 @@ export async function getOrdenes(): Promise<OrdenTrabajoExtendida[]> {
     
     return (data?.map((orden: Record<string, unknown>) => ({
       ...orden,
-      cliente: (orden as any).clientes,
-      tecnico: (orden as any).tecnicos,
-      equipo: (orden as any).equipos
+      cliente: (orden as Record<string, unknown>).clientes as Cliente,
+      tecnico: (orden as Record<string, unknown>).tecnicos as Tecnico,
+      equipo: (orden as Record<string, unknown>).equipos as Equipo
     })) || []) as OrdenTrabajoExtendida[]
   } catch (error) {
     console.error('Error obteniendo órdenes:', error)
@@ -637,9 +639,9 @@ export async function getOrdenesByTecnicoId(tecnicoId: string): Promise<OrdenTra
     
     return (data?.map((orden: Record<string, unknown>) => ({
       ...orden,
-      cliente: (orden as any).clientes,
-      tecnico: (orden as any).tecnicos,
-      equipo: (orden as any).equipos
+      cliente: (orden as Record<string, unknown>).clientes as Cliente,
+      tecnico: (orden as Record<string, unknown>).tecnicos as Tecnico,
+      equipo: (orden as Record<string, unknown>).equipos as Equipo
     })) || []) as OrdenTrabajoExtendida[]
   } catch (error) {
     console.error('Error obteniendo órdenes del técnico:', error)
@@ -663,9 +665,9 @@ export async function getOrdenesByClienteId(clienteId: string): Promise<OrdenTra
     
     return (data?.map((orden: Record<string, unknown>) => ({
       ...orden,
-      cliente: (orden as any).clientes,
-      tecnico: (orden as any).tecnicos,
-      equipo: (orden as any).equipos
+      cliente: (orden as Record<string, unknown>).clientes as Cliente,
+      tecnico: (orden as Record<string, unknown>).tecnicos as Tecnico,
+      equipo: (orden as Record<string, unknown>).equipos as Equipo
     })) || []) as OrdenTrabajoExtendida[]
   } catch (error) {
     console.error('Error obteniendo órdenes del cliente:', error)
@@ -794,16 +796,20 @@ export async function getMantenimientos(): Promise<MantenimientoExtendido[]> {
     
     if (error) throw error
     
-    return (data?.map((m: Record<string, unknown>) => ({
-      ...m,
-      orden: (m as any).ordenes_trabajo ? {
-        ...(m as any).ordenes_trabajo,
-        cliente: (m as any).ordenes_trabajo.clientes,
-        tecnico: (m as any).ordenes_trabajo.tecnicos,
-        equipo: (m as any).ordenes_trabajo.equipos
-      } : undefined,
-      repuestos: (m as any).detalle_repuestos || []
-    })) || []) as MantenimientoExtendido[]
+    return (data?.map((m: Record<string, unknown>) => {
+      const mRecord = m as Record<string, unknown>
+      const ordenData = mRecord.ordenes_trabajo as Record<string, unknown> | undefined
+      return {
+        ...m,
+        orden: ordenData ? {
+          ...(ordenData as unknown as OrdenTrabajo),
+          cliente: ordenData.clientes as Cliente,
+          tecnico: ordenData.tecnicos as Tecnico,
+          equipo: ordenData.equipos as Equipo
+        } : undefined,
+        repuestos: (mRecord.detalle_repuestos as (DetalleRepuesto & { repuesto?: Repuesto })[]) || []
+      }
+    }) || []) as MantenimientoExtendido[]
   } catch (error) {
     console.error('Error obteniendo mantenimientos:', error)
     return []
@@ -846,7 +852,7 @@ export async function agregarRepuestoAMantenimiento(
   mantenimientoId: string,
   repuestoId: string,
   cantidad: number
-): Promise<any> {
+): Promise<DetalleRepuesto> {
   try {
     const { data, error } = await supabase
       .from('detalle_repuestos')
@@ -885,12 +891,14 @@ export async function agregarRepuestoAMantenimiento(
 }
 
 // Obtener repuestos de un mantenimiento
-export async function getRepuestosDelMantenimiento(mantenimientoId: string): Promise<any[]> {
+export async function getRepuestosDelMantenimiento(mantenimientoId: string): Promise<RepuestoMantenimiento[]> {
   try {
     const { data, error } = await supabase
       .from('detalle_repuestos')
       .select(`
         id,
+        mantenimiento_id,
+        repuesto_id,
         cantidad,
         repuestos (
           id,
@@ -901,7 +909,7 @@ export async function getRepuestosDelMantenimiento(mantenimientoId: string): Pro
       .eq('mantenimiento_id', mantenimientoId)
     
     if (error) throw error
-    return data || []
+    return (data || []) as unknown as RepuestoMantenimiento[]
   } catch (error) {
     console.error('Error obteniendo repuestos del mantenimiento:', error)
     return []
@@ -954,8 +962,8 @@ export async function getCotizaciones(): Promise<CotizacionExtendida[]> {
     
     return (data?.map((c: Record<string, unknown>) => ({
       ...c,
-      cliente: (c as any).clientes,
-      items: (c as any).cotizacion_items || []
+      cliente: (c as Record<string, unknown>).clientes as Cliente,
+      items: (c as Record<string, unknown>).cotizacion_items as CotizacionItem[] || []
     })) || []) as CotizacionExtendida[]
   } catch (error) {
     console.error('Error obteniendo cotizaciones:', error)
@@ -981,8 +989,8 @@ export async function getCotizacionesByClienteId(clienteId: string): Promise<Cot
     
     return (data?.map((c: Record<string, unknown>) => ({
       ...c,
-      cliente: (c as any).clientes,
-      items: (c as any).cotizacion_items || []
+      cliente: (c as Record<string, unknown>).clientes as Cliente,
+      items: (c as Record<string, unknown>).cotizacion_items as CotizacionItem[] || []
     })) || []) as CotizacionExtendida[]
   } catch (error) {
     console.error('Error obteniendo cotizaciones del cliente:', error)
@@ -1070,7 +1078,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     const mantenimientosCorrectivos = mantenimientosData.filter(m => m.tipo === 'correctivo').length
     const ingresosMes = cotizacionesData
       .filter(c => c.estado === 'aprobada')
-      .reduce((sum: number, c: Record<string, unknown>) => sum + ((c as any).total || 0), 0)
+      .reduce((sum: number, c: Record<string, unknown>) => sum + (((c as Record<string, unknown>).total as number) || 0), 0)
 
     return {
       totalOrdenes: ordenesData.length,
@@ -1135,7 +1143,8 @@ export async function getTecnicosProductividad(): Promise<{ nombre: string; orde
     if (Array.isArray(data)) {
       data.forEach((orden: Record<string, unknown>) => {
         const tecnicoId = orden.tecnico_id as string
-        const tecnicoNombre = (orden as any).tecnicos?.nombre || 'Sin asignar'
+        const tecnicoObj = ((orden as Record<string, unknown>).tecnicos as Record<string, unknown> | undefined)
+        const tecnicoNombre = (tecnicoObj?.nombre as string) || 'Sin asignar'
         
         if (tecnicoId) {
           const existing = stats.find(t => t.id === tecnicoId)
@@ -1163,7 +1172,7 @@ export async function subirImagenMantenimiento(
   mantenimientoId: string,
   archivo: File,
   descripcion?: string
-): Promise<any> {
+): Promise<ImagenMantenimiento> {
   try {
     const formData = new FormData()
     formData.append('file', archivo)
@@ -1252,7 +1261,7 @@ export function getPrioridadColor(prioridad: string): string {
 
 // ============ TIPOS DE EQUIPO ============
 
-export async function getTiposEquipo(): Promise<any[]> {
+export async function getTiposEquipo(): Promise<Record<string, unknown>[]> {
   try {
     const { data, error } = await supabase
       .from('tipos_equipo')
@@ -1271,7 +1280,7 @@ export async function createTipoEquipo(
   nombre: string,
   descripcion?: string,
   marca?: string
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   try {
     const { data, error } = await supabase
       .from('tipos_equipo')
@@ -1292,7 +1301,7 @@ export async function updateTipoEquipo(
   nombre?: string,
   descripcion?: string,
   marca?: string
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   try {
     const { data, error } = await supabase
       .from('tipos_equipo')
@@ -1326,7 +1335,7 @@ export async function deleteTipoEquipo(id: string): Promise<boolean> {
 
 // ============ TIPOS DE TRABAJO ============
 
-export async function getTiposTrabajo(): Promise<any[]> {
+export async function getTiposTrabajo(): Promise<Record<string, unknown>[]> {
   try {
     const { data, error } = await supabase
       .from('tipos_trabajo')
@@ -1345,7 +1354,7 @@ export async function createTipoTrabajo(
   nombre: string,
   descripcion?: string,
   requiere_repuestos: boolean = false
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   try {
     const { data, error } = await supabase
       .from('tipos_trabajo')
@@ -1366,7 +1375,7 @@ export async function updateTipoTrabajo(
   nombre?: string,
   descripcion?: string,
   requiere_repuestos?: boolean
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   try {
     const { data, error } = await supabase
       .from('tipos_trabajo')
@@ -1405,7 +1414,7 @@ export async function deleteTipoTrabajo(id: string): Promise<boolean> {
 
 // ============ REPUESTOS EN REVISIÓN ============
 
-export async function getRepuestosEnRevision(clienteId?: string): Promise<any[]> {
+export async function getRepuestosEnRevision(clienteId?: string): Promise<Record<string, unknown>[]> {
   try {
     let query = supabase
       .from('repuestos_revision')
@@ -1433,7 +1442,7 @@ export async function createRepuestoEnRevision(
   cantidad: number = 1,
   precio_estimado?: number,
   descripcion?: string
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   try {
     const { data, error } = await supabase
       .from('repuestos_revision')
@@ -1529,7 +1538,7 @@ export async function crearSolicitudCotizacion(
   equipoId: string,
   tipoTrabajoId: string,
   descripcion?: string
-): Promise<any> {
+): Promise<CotizacionConRelaciones> {
   try {
     const { data, error } = await supabase
       .from('cotizaciones')
@@ -1665,7 +1674,7 @@ export async function completarCotizacion(
       cotizacionId,
       undefined,
       { total: cotizacionAnterior?.total },
-      { total, estado: updateData.estado || 'pendiente', cantidad_items: cotizacionAnterior?.items?.length || 0 },
+      { total, estado: updateData.estado || 'pendiente', cantidad_items: cotizacionAnterior?.cotizacion_items?.length || 0 },
       descripcion,
       emailDestinatarios.length > 0 ? emailDestinatarios : undefined
     )
@@ -1768,7 +1777,7 @@ export async function subirEvidenciaCotizacion(
   cotizacionId: string,
   archivo: File,
   descripcion?: string
-): Promise<any> {
+): Promise<EvidenciaCotizacion> {
   try {
     const formData = new FormData()
     formData.append('file', archivo)
@@ -1830,7 +1839,7 @@ export async function cambiarEstadoCotizacion(
   cotizacionId: string,
   estado: 'aprobada' | 'rechazada',
   comentarios?: string
-): Promise<any> {
+): Promise<Cotizacion> {
   try {
     // Si se aprueba, descontar stock de los repuestos
     if (estado === 'aprobada') {
@@ -1946,7 +1955,7 @@ export async function exportarCotizacionPDF(cotizacionId: string): Promise<void>
     // Importar jsPDF dinámicamente
     const { jsPDF } = await import('jspdf')
     
-    const doc = new jsPDF() as any
+    const doc = new (jsPDF as unknown as typeof jsPDF)()
     const pageWidth = doc.internal.pageSize.getWidth()
     const pageHeight = doc.internal.pageSize.getHeight()
     let yPosition = 15
@@ -1968,7 +1977,7 @@ export async function exportarCotizacionPDF(cotizacionId: string): Promise<void>
     doc.setTextColor(40, 40, 40)
     doc.text(`Número: ${cotizacion.numero}`, 15, yPosition)
     yPosition += 6
-    doc.text(`Fecha: ${formatDate(cotizacion.created_at)}`, 15, yPosition)
+    doc.text(`Fecha: ${formatDate(cotizacion.created_at || '')}`, 15, yPosition)
     yPosition += 6
     doc.text(`Vigencia: ${cotizacion.vigencia_dias} días`, 15, yPosition)
     yPosition += 6
@@ -2016,17 +2025,17 @@ export async function exportarCotizacionPDF(cotizacionId: string): Promise<void>
     
     // Items
     let subtotal = 0
-    cotizacion.cotizacion_items?.forEach((item: Record<string, unknown>) => {
+    cotizacion.cotizacion_items?.forEach((item: CotizacionItem) => {
       const descripcion = item.descripcion || 'Item'
       const cantidad = item.cantidad || 0
-      const valor = item.valor_unitario || 0
+      const valor = item.precio_unitario || 0
       const total = cantidad * valor
       subtotal += total
       
       doc.setFontSize(9)
-      doc.text(descripcion.substring(0, 40), 17, yPosition)
-      doc.text(cantidad.toString(), 15 + colWidth + 10, yPosition)
-      doc.text(formatCurrency(valor), 15 + colWidth + cantWidth + 5, yPosition)
+      doc.text(String(descripcion).substring(0, 40), 17, yPosition)
+      doc.text(String(cantidad), 15 + colWidth + 10, yPosition)
+      doc.text(formatCurrency(Number(valor)), 15 + colWidth + cantWidth + 5, yPosition)
       yPosition += 6
       
       if (yPosition > pageHeight - 30) {
@@ -2085,7 +2094,7 @@ export async function registrarEvento(
   cambiosNuevos?: Record<string, unknown>,
   descripcion?: string,
   emailDestinatarios?: string[]
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   try {
     // Si hay usuario, obtener sus datos
     let usuarioEmail = ''
@@ -2149,7 +2158,7 @@ export async function registrarEvento(
     return auditLog
   } catch (error) {
     console.error('Error registrando evento:', error)
-    return null
+    return {}
   }
 }
 
@@ -2161,7 +2170,7 @@ export async function getAuditLogs(
     desde?: string
     hasta?: string
   }
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   try {
     let query = supabase
       .from('audit_logs')

@@ -131,12 +131,17 @@ export interface CotizacionConRelaciones {
   cliente_id: string
   descripcion: string
   created_at?: string
+  numero?: string
+  vigencia_dias?: number
+  iva?: number
   clientes?: {
     id: string
     nombre_empresa?: string
     nombre: string
     telefono: string
     direccion: string
+    usuario_id?: string
+    email?: string
   }
   equipos?: {
     id: string
@@ -148,6 +153,8 @@ export interface CotizacionConRelaciones {
     nombre: string
   }
   cotizacion_items?: CotizacionItem[]
+  cotizacion_evidencia?: EvidenciaCotizacion[]
+  items?: CotizacionItem[]
 }
 
 // Archivo de evidencia
