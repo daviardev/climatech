@@ -246,7 +246,7 @@ export async function updatePasswordUsuario(usuarioId: string, nuevaPassword: st
       'usuarios',
       usuarioId,
       usuarioId,
-      null,
+      undefined,
       { password_changed: true },
       `Contraseña actualizada`,
       []
@@ -582,12 +582,12 @@ export async function getOrdenes(): Promise<OrdenTrabajoExtendida[]> {
     
     if (error) throw error
     
-    return data?.map((orden: Record<string, unknown>) => ({
+    return (data?.map((orden: Record<string, unknown>) => ({
       ...orden,
       cliente: (orden as any).clientes,
       tecnico: (orden as any).tecnicos,
       equipo: (orden as any).equipos
-    })) || []
+    })) || []) as OrdenTrabajoExtendida[]
   } catch (error) {
     console.error('Error obteniendo órdenes:', error)
     return []
@@ -635,12 +635,12 @@ export async function getOrdenesByTecnicoId(tecnicoId: string): Promise<OrdenTra
     
     if (error) throw error
     
-    return data?.map((orden: Record<string, unknown>) => ({
+    return (data?.map((orden: Record<string, unknown>) => ({
       ...orden,
       cliente: (orden as any).clientes,
       tecnico: (orden as any).tecnicos,
       equipo: (orden as any).equipos
-    })) || []
+    })) || []) as OrdenTrabajoExtendida[]
   } catch (error) {
     console.error('Error obteniendo órdenes del técnico:', error)
     return []
@@ -661,12 +661,12 @@ export async function getOrdenesByClienteId(clienteId: string): Promise<OrdenTra
     
     if (error) throw error
     
-    return data?.map((orden: Record<string, unknown>) => ({
+    return (data?.map((orden: Record<string, unknown>) => ({
       ...orden,
       cliente: (orden as any).clientes,
       tecnico: (orden as any).tecnicos,
       equipo: (orden as any).equipos
-    })) || []
+    })) || []) as OrdenTrabajoExtendida[]
   } catch (error) {
     console.error('Error obteniendo órdenes del cliente:', error)
     return []
@@ -689,7 +689,7 @@ export async function createOrden(data: Omit<OrdenTrabajo, 'id'>, usuario_id?: s
       'ordenes_trabajo',
       newOrden.id,
       usuario_id,
-      null,
+      undefined,
       { equipo_id: data.equipo_id, cliente_id: data.cliente_id, prioridad: data.prioridad },
       `Nueva orden de trabajo creada`,
       ['admin@climatech.local'] // Email al admin
@@ -794,7 +794,7 @@ export async function getMantenimientos(): Promise<MantenimientoExtendido[]> {
     
     if (error) throw error
     
-    return data?.map((m: Record<string, unknown>) => ({
+    return (data?.map((m: Record<string, unknown>) => ({
       ...m,
       orden: (m as any).ordenes_trabajo ? {
         ...(m as any).ordenes_trabajo,
@@ -803,7 +803,7 @@ export async function getMantenimientos(): Promise<MantenimientoExtendido[]> {
         equipo: (m as any).ordenes_trabajo.equipos
       } : undefined,
       repuestos: (m as any).detalle_repuestos || []
-    })) || []
+    })) || []) as MantenimientoExtendido[]
   } catch (error) {
     console.error('Error obteniendo mantenimientos:', error)
     return []
@@ -952,11 +952,11 @@ export async function getCotizaciones(): Promise<CotizacionExtendida[]> {
     
     if (error) throw error
     
-    return data?.map((c: Record<string, unknown>) => ({
+    return (data?.map((c: Record<string, unknown>) => ({
       ...c,
       cliente: (c as any).clientes,
       items: (c as any).cotizacion_items || []
-    })) || []
+    })) || []) as CotizacionExtendida[]
   } catch (error) {
     console.error('Error obteniendo cotizaciones:', error)
     return []
@@ -979,11 +979,11 @@ export async function getCotizacionesByClienteId(clienteId: string): Promise<Cot
     
     if (error) throw error
     
-    return data?.map((c: Record<string, unknown>) => ({
+    return (data?.map((c: Record<string, unknown>) => ({
       ...c,
       cliente: (c as any).clientes,
       items: (c as any).cotizacion_items || []
-    })) || []
+    })) || []) as CotizacionExtendida[]
   } catch (error) {
     console.error('Error obteniendo cotizaciones del cliente:', error)
     return []
@@ -1134,8 +1134,8 @@ export async function getTecnicosProductividad(): Promise<{ nombre: string; orde
 
     if (Array.isArray(data)) {
       data.forEach((orden: Record<string, unknown>) => {
-        const tecnicoId = orden.tecnico_id
-        const tecnicoNombre = orden.tecnicos?.nombre || 'Sin asignar'
+        const tecnicoId = orden.tecnico_id as string
+        const tecnicoNombre = (orden as any).tecnicos?.nombre || 'Sin asignar'
         
         if (tecnicoId) {
           const existing = stats.find(t => t.id === tecnicoId)
@@ -1556,7 +1556,7 @@ export async function crearSolicitudCotizacion(
       'cotizaciones',
       data.id,
       cliente?.usuario_id,
-      null,
+      undefined,
       { cliente_id: clienteId, equipo_id: equipoId, tipo_trabajo_id: tipoTrabajoId },
       'Nueva cotización solicitada',
       cliente?.usuario_id ? [cliente.usuario_id] : undefined
