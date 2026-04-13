@@ -2133,11 +2133,13 @@ export async function registrarEvento(
 
     // Trigger para enviar email via Edge Function
     if (emailDestinatarios && emailDestinatarios.length > 0) {
-      console.log(`Enviando notificación por evento: ${evento}`)
+      console.log(`Enviando notificación por evento: ${evento}`, { emailDestinatarios })
       
+      const notificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000'}/api/send-notification-email`
+
       // Llamar a Edge Function para enviar email
       try {
-        await fetch('/api/send-notification-email', {
+        const response = await fetch(notificationUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2149,6 +2151,15 @@ export async function registrarEvento(
             cambiosNuevos
           })
         })
+
+        if (!response.ok) {
+          const responseBody = await response.text().catch(() => 'No se pudo leer el cuerpo de la respuesta')
+          console.error('Error enviando email de notificación:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: responseBody
+          })
+        }
       } catch (emailError) {
         console.error('Error enviando email de notificación:', emailError)
         // No fallar si el email no se envía

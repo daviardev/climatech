@@ -210,6 +210,13 @@ export async function POST(request: NextRequest) {
       cambiosNuevos
     } = body
 
+    console.log('send-notification-email request', {
+      evento,
+      emailDestinatarios,
+      hasResendKey: Boolean(process.env.RESEND_API_KEY),
+      auditLogId
+    })
+
     if (!emailDestinatarios || emailDestinatarios.length === 0) {
       return NextResponse.json(
         { error: 'No hay destinatarios de email' },
@@ -227,6 +234,8 @@ export async function POST(request: NextRequest) {
       const emailsValidos = emailDestinatarios.filter((email: string) => 
         email.includes('@') && !email.endsWith('.local')
       )
+
+      console.log('emails válidos para Resend:', emailsValidos, 'filtrados:', emailDestinatarios.filter((e: string) => !emailsValidos.includes(e)))
 
       if (emailsValidos.length === 0) {
         console.warn('⚠️  No hay emails válidos para enviar en modo testing de Resend')
