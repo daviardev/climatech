@@ -58,7 +58,7 @@ export async function getUserById(id: string): Promise<User | null> {
       .from('usuarios')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
     
     if (error) {
       console.error('Error obteniendo usuario:', error)
@@ -2099,12 +2099,16 @@ export async function registrarEvento(
     // Si hay usuario, obtener sus datos
     let usuarioEmail = ''
     let usuarioRol = ''
+    let usuarioIdToInsert: string | null = null
     
     if (usuarioId) {
       const usuario = await getUserById(usuarioId)
       if (usuario) {
         usuarioEmail = usuario.email
         usuarioRol = usuario.rol
+        usuarioIdToInsert = usuarioId
+      } else {
+        console.warn('Usuario para auditoría no encontrado, se guardará usuario_id como null:', usuarioId)
       }
     }
 
@@ -2116,7 +2120,7 @@ export async function registrarEvento(
           evento,
           tabla,
           registro_id: registroId,
-          usuario_id: usuarioId || null,
+          usuario_id: usuarioIdToInsert,
           usuario_email: usuarioEmail,
           usuario_rol: usuarioRol,
           cambios_anteriores: cambiosAnteriores || null,
@@ -2135,7 +2139,9 @@ export async function registrarEvento(
     if (emailDestinatarios && emailDestinatarios.length > 0) {
       console.log(`Enviando notificación por evento: ${evento}`, { emailDestinatarios })
       
-      const notificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000'}/api/send-notification-email`
+      const notificationUrl = typeof window !== 'undefined'
+        ? '/api/send-notification-email'
+        : `${process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000'}/api/send-notification-email`
 
       // Llamar a Edge Function para enviar email
       try {
